@@ -11,16 +11,16 @@ import java.util.Arrays;
 public class XxlRpcRequest implements Serializable{
 	private static final long serialVersionUID = 42L;
 	
-	private String requestId;
-	private long createMillisTime;
-	private String accessToken;
+	private String requestId;           // 唯一的标识，请求与响应对应，作者使用的uuid
+	private long createMillisTime;      // 时间戳，主要是用于服务提供者进行超时检测用的
+	private String accessToken;         // 用于服务调用者权限验证用的
 
-    private String className;
-    private String methodName;
-    private Class<?>[] parameterTypes;
-    private Object[] parameters;
+    private String className;           // 需要调用的类的全类名
+    private String methodName;          // 该类的方法名,服务调用者找到要执行的对象后就会invoke该方法
+    private Class<?>[] parameterTypes;  // 方法参数类型数组
+    private Object[] parameters;        // 方法参数的值
 
-	private String version;
+	private String version;             // 服务提供着版本，这个成员与 className 可以生成一个key，服务调用者根据该key就能够找到执行对象
 
 
 	public String getRequestId() {

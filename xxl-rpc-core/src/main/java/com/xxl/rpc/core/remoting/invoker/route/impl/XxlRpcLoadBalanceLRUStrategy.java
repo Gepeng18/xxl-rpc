@@ -13,12 +13,14 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class XxlRpcLoadBalanceLRUStrategy extends XxlRpcLoadBalance {
 
+    //  存储 serviceKey 与 address
     private ConcurrentMap<String, LinkedHashMap<String, String>> jobLRUMap = new ConcurrentHashMap<String, LinkedHashMap<String, String>>();
     private long CACHE_VALID_TIME = 0;
 
     public String doRoute(String serviceKey, TreeSet<String> addressSet) {
 
         // cache clear
+        // cache clear 过段时间清空 map
         if (System.currentTimeMillis() > CACHE_VALID_TIME) {
             jobLRUMap.clear();
             CACHE_VALID_TIME = System.currentTimeMillis() + 1000*60*60*24;
@@ -26,6 +28,7 @@ public class XxlRpcLoadBalanceLRUStrategy extends XxlRpcLoadBalance {
 
         // init lru
         LinkedHashMap<String, String> lruItem = jobLRUMap.get(serviceKey);
+        // 初始化
         if (lruItem == null) {
             /**
              * LinkedHashMap
@@ -45,6 +48,7 @@ public class XxlRpcLoadBalanceLRUStrategy extends XxlRpcLoadBalance {
             jobLRUMap.putIfAbsent(serviceKey, lruItem);
         }
 
+        // 让本地的jobLRUMap中的数据和route传入的地址一样
         // put new
         for (String address: addressSet) {
             if (!lruItem.containsKey(address)) {
@@ -65,6 +69,7 @@ public class XxlRpcLoadBalanceLRUStrategy extends XxlRpcLoadBalance {
         }
 
         // load
+        // 这里key和value有啥区别，啥区别也没
         String eldestKey = lruItem.entrySet().iterator().next().getKey();
         String eldestValue = lruItem.get(eldestKey);
         return eldestValue;

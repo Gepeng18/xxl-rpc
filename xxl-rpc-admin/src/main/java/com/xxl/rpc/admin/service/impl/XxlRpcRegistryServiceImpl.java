@@ -270,6 +270,7 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
             xxlRpcRegistryData.setKey(key);
 
             List<String> dataList = new ArrayList<String>();
+            // 服务发现，从文件中读取
             XxlRpcRegistry fileXxlRpcRegistry = getFileRegistryData(xxlRpcRegistryData);
             if (fileXxlRpcRegistry !=null) {
                 dataList = fileXxlRpcRegistry.getDataList();
@@ -328,10 +329,12 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
     }
 
     /**
+     * 该方法就是将数据从dataDao中全部读出来，然后写入registryDao中，如果有更新，还需要更新message表
      * update Registry And Message
      */
     private void checkRegistryDataAndSendMessage(XxlRpcRegistryData xxlRpcRegistryData){
         // data json
+        // 1、从dataDao中获取所有注册中心
         List<XxlRpcRegistryData> xxlRpcRegistryDataList = xxlRpcRegistryDataDao.findData(xxlRpcRegistryData.getBiz(), xxlRpcRegistryData.getEnv(), xxlRpcRegistryData.getKey());
         List<String> valueList = new ArrayList<>();
         if (xxlRpcRegistryDataList !=null && xxlRpcRegistryDataList.size()>0) {
@@ -342,9 +345,11 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
         String dataJson = JacksonUtil.writeValueAsString(valueList);
 
         // update registry and message
+        // 2、从registryDao中获取所有注册中心（存储成一行数据）
         XxlRpcRegistry xxlRpcRegistry = xxlRpcRegistryDao.load(xxlRpcRegistryData.getBiz(), xxlRpcRegistryData.getEnv(), xxlRpcRegistryData.getKey());
         boolean needMessage = false;
         if (xxlRpcRegistry == null) {
+            // 之前没有，则存储到registryDao中
             xxlRpcRegistry = new XxlRpcRegistry();
             xxlRpcRegistry.setBiz(xxlRpcRegistryData.getBiz());
             xxlRpcRegistry.setEnv(xxlRpcRegistryData.getEnv());
@@ -353,12 +358,13 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
             xxlRpcRegistryDao.add(xxlRpcRegistry);
             needMessage = true;
         } else {
-
+            // 之前registryDao中有
             // check status, locked and disabled not use
             if (xxlRpcRegistry.getStatus() != 0) {
                 return;
             }
 
+            // 如果注册的地址不一样，则更新registryDao中的地址字段
             if (!xxlRpcRegistry.getData().equals(dataJson)) {
                 xxlRpcRegistry.setData(dataJson);
                 xxlRpcRegistryDao.update(xxlRpcRegistry);
@@ -366,6 +372,7 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
             }
         }
 
+        // 一旦有更新，写入message表
         if (needMessage) {
             // sendRegistryDataUpdateMessage (registry update)
             sendRegistryDataUpdateMessage(xxlRpcRegistry);
@@ -400,23 +407,29 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
                 public void run() {
                     while (!executorStoped) {
                         try {
+                            // 1、把数据从队列中拿出来
                             XxlRpcRegistryData xxlRpcRegistryData = registryQueue.take();
+                            // 2、写到dataDao中
                             if (xxlRpcRegistryData !=null) {
-
                                 // refresh or add
                                 int ret = xxlRpcRegistryDataDao.refresh(xxlRpcRegistryData);
                                 if (ret == 0) {
                                     xxlRpcRegistryDataDao.add(xxlRpcRegistryData);
                                 }
 
+                                // 这里是判断如果本地文件不存在，则调用checkRegistryDataAndSendMessage方法
+                                // 在某些情况下，不需要调用该方法
                                 // valid file status
                                 XxlRpcRegistry fileXxlRpcRegistry = getFileRegistryData(xxlRpcRegistryData);
                                 if (fileXxlRpcRegistry == null) {
+                                    // 服务不存在
                                     // go on
                                 } else if (fileXxlRpcRegistry.getStatus() != 0) {
+                                    // 服务不正常
                                     continue;     // "Status limited."
                                 } else {
                                     if (fileXxlRpcRegistry.getDataList().contains(xxlRpcRegistryData.getValue())) {
+                                        // 本地文件中的服务包含了这个节点
                                         continue;     // "Repeated limited."
                                     }
                                 }
@@ -443,12 +456,16 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
                 public void run() {
                     while (!executorStoped) {
                         try {
+                            // 1、把数据从队列中拿出来
                             XxlRpcRegistryData xxlRpcRegistryData = removeQueue.take();
                             if (xxlRpcRegistryData != null) {
 
                                 // delete
+                                // 2、从dataDao中删除
                                 xxlRpcRegistryDataDao.deleteDataValue(xxlRpcRegistryData.getBiz(), xxlRpcRegistryData.getEnv(), xxlRpcRegistryData.getKey(), xxlRpcRegistryData.getValue());
 
+                                // 这里是判断如果本地文件不存在，则调用checkRegistryDataAndSendMessage方法
+                                // 在某些情况下，不需要调用该方法
                                 // valid file status
                                 XxlRpcRegistry fileXxlRpcRegistry = getFileRegistryData(xxlRpcRegistryData);
                                 if (fileXxlRpcRegistry == null) {
@@ -475,7 +492,8 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
         }
 
         /**
-         * broadcase new one registry-data-file     (1/1s)
+         * broadcast new one registry-data-file     (1/1s)
+         * 将message数据同步至本地文件
          *
          * clean old message   (1/10s)
          */
@@ -485,6 +503,7 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
                 while (!executorStoped) {
                     try {
                         // new message, filter readed
+                        // 除了readedMessageIds外，其他的message数据写入本地文件
                         List<XxlRpcRegistryMessage> messageList = xxlRpcRegistryMessageDao.findMessage(readedMessageIds);
                         if (messageList!=null && messageList.size()>0) {
                             for (XxlRpcRegistryMessage message: messageList) {
@@ -511,6 +530,7 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
                         }
 
                         // clean old message;
+                        // 10秒清理一次message表和本地messageId
                         if ( (System.currentTimeMillis()/1000) % registryBeatTime ==0) {
                             xxlRpcRegistryMessageDao.cleanMessage(registryBeatTime);
                             readedMessageIds.clear();
@@ -556,9 +576,10 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
                     }
 
                     try {
-                        // clean old registry-data in db
+                        // 1、clean old registry-data in db
                         xxlRpcRegistryDataDao.cleanData(registryBeatTime * 3);
 
+                        // 2、扫描Server所有注册的数据
                         // sync registry-data, db + file
                         int offset = 0;
                         int pagesize = 1000;
@@ -588,6 +609,7 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
                                     String dataJson = JacksonUtil.writeValueAsString(valueList);
 
                                     // check update, sync db
+                                    // 同步至registryDao
                                     if (!registryItem.getData().equals(dataJson)) {
                                         registryItem.setData(dataJson);
                                         xxlRpcRegistryDao.update(registryItem);
@@ -595,6 +617,7 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
                                 }
 
                                 // sync file
+                                // 同步至本地文件
                                 String registryDataFile = setFileRegistryData(registryItem);
 
                                 // collect registryDataFile
@@ -606,6 +629,7 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
                             registryList = xxlRpcRegistryDao.pageList(offset, pagesize, null, null, null);
                         }
 
+                        // 3、清理除了刚刚同步完的（registryDao中现有的）本地文件
                         // clean old registry-data file
                         cleanFileRegistryData(registryDataFileList);
 
@@ -706,6 +730,7 @@ public class XxlRpcRegistryServiceImpl implements IXxlRpcRegistryService, Initia
         filterChildPath(new File(registryDataFilePath), registryDataFileList);
     }
 
+    // 清理除了registryDataFileList的文件
     public void filterChildPath(File parentPath, final List<String> registryDataFileList){
         if (!parentPath.exists() || parentPath.list()==null || parentPath.list().length==0) {
             return;

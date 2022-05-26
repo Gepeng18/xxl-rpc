@@ -21,9 +21,11 @@ import java.util.HashMap;
 public class XxlRpcProviderConfig {
     private Logger logger = LoggerFactory.getLogger(XxlRpcProviderConfig.class);
 
+    // 对外提供服务的端口
     @Value("${xxl-rpc.remoting.port}")
     private int port;
 
+    // admin地址
     @Value("${xxl-rpc.registry.xxlrpcadmin.address}")
     private String address;
 
@@ -32,16 +34,19 @@ public class XxlRpcProviderConfig {
 
     @Bean
     public XxlRpcSpringProviderFactory xxlRpcSpringProviderFactory() {
-
+        // 创建对象
         XxlRpcSpringProviderFactory providerFactory = new XxlRpcSpringProviderFactory();
         providerFactory.setServer(NettyServer.class);
         providerFactory.setSerializer(HessianSerializer.class);
         providerFactory.setCorePoolSize(-1);
         providerFactory.setMaxPoolSize(-1);
         providerFactory.setIp(null);
+        // 设置提供服务的端口
         providerFactory.setPort(port);
         providerFactory.setAccessToken(null);
+        // 设置一些成员  使用哪种注册中心
         providerFactory.setServiceRegistry(XxlRpcAdminRegister.class);
+        // 注册中的一些参数
         providerFactory.setServiceRegistryParam(new HashMap<String, String>() {{
             put(XxlRpcAdminRegister.ADMIN_ADDRESS, address);
             put(XxlRpcAdminRegister.ENV, env);

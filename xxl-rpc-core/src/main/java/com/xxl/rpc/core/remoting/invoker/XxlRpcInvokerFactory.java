@@ -16,6 +16,7 @@ import java.util.concurrent.*;
 
 /**
  * xxl-rpc invoker factory, init service-registry
+ * 主要是做了服务注册，客户端线程池响应初始化和回调线程池的初始化，客户端的 start，stop的工作。
  *
  * @author xuxueli 2018-10-19
  */
@@ -49,18 +50,20 @@ public class XxlRpcInvokerFactory {
     public void start() throws Exception {
         // start registry
         if (serviceRegistryClass != null) {
+            // 创建 注册中心 对象
             register = serviceRegistryClass.newInstance();
+            // 创建注册中心client并创建守护线程来刷新获取服务提供者列表。
             register.start(serviceRegistryParam);
         }
     }
 
     public void  stop() throws Exception {
-        // stop registry
+        // stop registry  停止注册中心客户端
         if (register != null) {
             register.stop();
         }
 
-        // stop callback
+        // stop callback  执行停止回调方法
         if (stopCallbackList.size() > 0) {
             for (BaseCallback callback: stopCallbackList) {
                 try {
@@ -71,7 +74,7 @@ public class XxlRpcInvokerFactory {
             }
         }
 
-        // stop CallbackThreadPool
+        // stop CallbackThreadPool  关闭线程池
         stopCallbackThreadPool();
     }
 

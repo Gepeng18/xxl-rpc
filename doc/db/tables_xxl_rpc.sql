@@ -7,6 +7,7 @@ use `xxl_rpc`;
 
 SET NAMES utf8mb4;
 
+-- 所有注册的地址存成一行，这些地址是一个list，被序列化成json存起来
 CREATE TABLE `xxl_rpc_registry` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `biz` varchar(50) NOT NULL COMMENT '业务标识',
@@ -18,6 +19,7 @@ CREATE TABLE `xxl_rpc_registry` (
   UNIQUE KEY `I_b_e_k` (`biz`,`env`,`key`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 每个注册的地址存储一行
 CREATE TABLE `xxl_rpc_registry_data` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `biz` varchar(50) NOT NULL COMMENT '业务标识',

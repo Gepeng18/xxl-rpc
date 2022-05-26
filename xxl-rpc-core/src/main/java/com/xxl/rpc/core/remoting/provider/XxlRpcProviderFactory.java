@@ -94,7 +94,7 @@ public class XxlRpcProviderFactory {
 
 	private Server serverInstance;
 	private Serializer serializerInstance;
-	private Register registerInstance;
+	private Register registerInstance;  // 负责注册的
 
 	public void start() throws Exception {
 
@@ -122,11 +122,14 @@ public class XxlRpcProviderFactory {
 			throw new XxlRpcException("xxl-rpc provider port["+ this.port +"] is used.");
 		}
 
+		// XxlRpcProviderConfig 配置中只设置了一个类，这里进行初始化
 		// init serializerInstance
 		this.serializerInstance = serializer.newInstance();
 
 		// start server
 		serverInstance = server.newInstance();
+		// 这里用了回调函数，而非观察者模式
+		// 设置启动回调函数
 		serverInstance.setStartedCallback(new BaseCallback() {		// serviceRegistry started
 			@Override
 			public void run() throws Exception {
@@ -140,12 +143,14 @@ public class XxlRpcProviderFactory {
 				}
 			}
 		});
+		// 设置停止回调函数
 		serverInstance.setStopedCallback(new BaseCallback() {		// serviceRegistry stoped
 			@Override
 			public void run() {
 				// stop registry
 				if (registerInstance != null) {
 					if (serviceData.size() > 0) {
+						// 该回调方法主要是将之前注册到注册中心的服务移除掉
 						registerInstance.remove(serviceData.keySet(), registryAddress);
 					}
 					registerInstance.stop();
@@ -195,7 +200,9 @@ public class XxlRpcProviderFactory {
 	 * @param serviceBean
 	 */
 	public void addService(String iface, String version, Object serviceBean){
+		// 通过一定规则生成key
 		String serviceKey = makeServiceKey(iface, version);
+		// 将key 与带有注解的bean 存储在map中
 		serviceData.put(serviceKey, serviceBean);
 
 		logger.info(">>>>>>>>>>> xxl-rpc, provider factory add service success. serviceKey = {}, serviceBean = {}", serviceKey, serviceBean.getClass());
@@ -214,6 +221,7 @@ public class XxlRpcProviderFactory {
 		xxlRpcResponse.setRequestId(xxlRpcRequest.getRequestId());
 
 		// match service bean
+		// 从本地找到服务
 		String serviceKey = makeServiceKey(xxlRpcRequest.getClassName(), xxlRpcRequest.getVersion());
 		Object serviceBean = serviceData.get(serviceKey);
 
@@ -223,20 +231,25 @@ public class XxlRpcProviderFactory {
 			return xxlRpcResponse;
 		}
 
+		// 检测超时
 		if (System.currentTimeMillis() - xxlRpcRequest.getCreateMillisTime() > 3*60*1000) {
 			xxlRpcResponse.setErrorMsg("The timestamp difference between admin and executor exceeds the limit.");
 			return xxlRpcResponse;
 		}
+		// 检测token
 		if (accessToken!=null && accessToken.trim().length()>0 && !accessToken.trim().equals(xxlRpcRequest.getAccessToken())) {
 			xxlRpcResponse.setErrorMsg("The access token[" + xxlRpcRequest.getAccessToken() + "] is wrong.");
 			return xxlRpcResponse;
 		}
 
 		try {
-			// invoke
+			// invoke 反射调用
 			Class<?> serviceClass = serviceBean.getClass();
+			// 获取要执行的方法名称
 			String methodName = xxlRpcRequest.getMethodName();
+			//获取执行方法参数类型
 			Class<?>[] parameterTypes = xxlRpcRequest.getParameterTypes();
+			// 获取要执行方法参数值
 			Object[] parameters = xxlRpcRequest.getParameters();
 
             Method method = serviceClass.getMethod(methodName, parameterTypes);

@@ -52,9 +52,13 @@ public class NettyServer extends Server {
                             .childHandler(new ChannelInitializer<SocketChannel>() {
                                 @Override
                                 public void initChannel(SocketChannel channel) throws Exception {
+                                    // 设置编码解码
                                     channel.pipeline()
                                             .addLast(new IdleStateHandler(0,0, Beat.BEAT_INTERVAL*3, TimeUnit.SECONDS))     // beat 3N, close if idle
+                                            // 该回调方法主要是将之前注册到注册中心的服务移除掉
                                             .addLast(new NettyDecoder(XxlRpcRequest.class, xxlRpcProviderFactory.getSerializerInstance()))
+                                            // 在响应的时候会被调用
+                                            // encode 方法主要就是对 XxlRpcResponse 对象进行编码 然后再流转到其他调用者手中
                                             .addLast(new NettyEncoder(XxlRpcResponse.class, xxlRpcProviderFactory.getSerializerInstance()))
                                             .addLast(new NettyServerHandler(xxlRpcProviderFactory, serverHandlerPool));
                                 }
@@ -66,6 +70,7 @@ public class NettyServer extends Server {
                     ChannelFuture future = bootstrap.bind(xxlRpcProviderFactory.getPort()).sync();
 
                     logger.info(">>>>>>>>>>> xxl-rpc remoting server start success, nettype = {}, port = {}", NettyServer.class.getName(), xxlRpcProviderFactory.getPort());
+                    // 回调处理 ，实现将服务注册到注册中心
                     onStarted();
 
                     // wait util stop
@@ -95,6 +100,7 @@ public class NettyServer extends Server {
                 }
             }
         });
+        // 设置守护线程
         thread.setDaemon(true);
         thread.start();
 
@@ -105,10 +111,12 @@ public class NettyServer extends Server {
 
         // destroy server thread
         if (thread != null && thread.isAlive()) {
+            // 中断启动时设置的守护线程。
             thread.interrupt();
         }
 
         // on stop
+        // 将注册中心上面的服务移除
         onStoped();
         logger.info(">>>>>>>>>>> xxl-rpc remoting server destroy success.");
     }

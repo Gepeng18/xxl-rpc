@@ -20,18 +20,20 @@ public class XxlRpcSpringProviderFactory extends XxlRpcProviderFactory implement
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-
+        // 去spring 的ioc 容器中查找带有XxlRpcService注解的所有类
         Map<String, Object> serviceBeanMap = applicationContext.getBeansWithAnnotation(XxlRpcService.class);
         if (serviceBeanMap!=null && serviceBeanMap.size()>0) {
             for (Object serviceBean : serviceBeanMap.values()) {
                 // valid
+                //判断一下看看实现接口了没有
                 if (serviceBean.getClass().getInterfaces().length ==0) {
                     throw new XxlRpcException("xxl-rpc, service(XxlRpcService) must inherit interface.");
                 }
                 // add service
                 XxlRpcService xxlRpcService = serviceBean.getClass().getAnnotation(XxlRpcService.class);
-
+                //找到类上有XxlRpcService注解，对应接口全类名
                 String iface = serviceBean.getClass().getInterfaces()[0].getName();
+                // 找到注解上面的版本信息
                 String version = xxlRpcService.version();
 
                 super.addService(iface, version, serviceBean);
@@ -42,6 +44,7 @@ public class XxlRpcSpringProviderFactory extends XxlRpcProviderFactory implement
 
     }
 
+    // 该方法的执行时机是 当设置好类属性的时候
     @Override
     public void afterPropertiesSet() throws Exception {
         super.start();
