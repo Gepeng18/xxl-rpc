@@ -55,11 +55,14 @@ public class NettyServer extends Server {
                                     // 设置编码解码
                                     channel.pipeline()
                                             .addLast(new IdleStateHandler(0,0, Beat.BEAT_INTERVAL*3, TimeUnit.SECONDS))     // beat 3N, close if idle
-                                            // 该回调方法主要是将之前注册到注册中心的服务移除掉
+                                            // 下面三个的调用顺序为：
+                                            // 接收请求时，NettyDecoder（将请求反序列化成XxlRpcRequest对象）
+                                            // NettyServerHandler: 找到XxlRpcRequest对象中具体服务提供对象，反射执行方法，然后将结果封装成Response对象
+                                            // NettyEncoder:将XxlRpcResponse 对象进行序列化
                                             .addLast(new NettyDecoder(XxlRpcRequest.class, xxlRpcProviderFactory.getSerializerInstance()))
-                                            // 在响应的时候会被调用
-                                            // encode 方法主要就是对 XxlRpcResponse 对象进行编码 然后再流转到其他调用者手中
+                                            // 对 XxlRpcResponse 对象进行序列化
                                             .addLast(new NettyEncoder(XxlRpcResponse.class, xxlRpcProviderFactory.getSerializerInstance()))
+                                            // 找到XxlRpcRequest对象中具体服务提供对象，反射执行方法，然后将结果封装成Response对象
                                             .addLast(new NettyServerHandler(xxlRpcProviderFactory, serverHandlerPool));
                                 }
                             })

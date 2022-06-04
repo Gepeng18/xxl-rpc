@@ -18,6 +18,10 @@ import java.util.Map;
  */
 public class XxlRpcSpringProviderFactory extends XxlRpcProviderFactory implements ApplicationContextAware, InitializingBean,DisposableBean {
 
+    /**
+     * 1、Spring启动的时候，就找到所有的添加了XxlRpcService注解的类
+     * 2、然后将对应的接口名+version作为key，Bean作为map缓存起来
+     */
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         // 去spring 的ioc 容器中查找带有XxlRpcService注解的所有类

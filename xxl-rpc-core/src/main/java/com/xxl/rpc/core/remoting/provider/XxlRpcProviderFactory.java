@@ -136,8 +136,10 @@ public class XxlRpcProviderFactory {
 				// start registry
 				if (serviceRegistry != null) {
 					registerInstance = serviceRegistry.newInstance();
+					// XxlRpcProviderConfig 中添加了该参数，这里启动，即连接上注册中心
 					registerInstance.start(serviceRegistryParam);
 					if (serviceData.size() > 0) {
+						// 将本地的service注册到注册中心
 						registerInstance.registry(serviceData.keySet(), registryAddress);
 					}
 				}
@@ -158,6 +160,7 @@ public class XxlRpcProviderFactory {
 				}
 			}
 		});
+		// 启动netty服务
 		serverInstance.start(this);
 	}
 
